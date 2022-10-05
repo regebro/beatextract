@@ -1,2 +1,2 @@
 # beatextract
-Extract beat/click timings from WAV and MIDIOX logs
+Extract beat/click timings from WAV files and MIDIOX logs
