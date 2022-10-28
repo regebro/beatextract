@@ -13,24 +13,26 @@ def extract(filename):
             if last == 0:
                 last = timestamp
                 continue
-            delta = timestamp-last
+            delta = timestamp - last
             distances.append(delta)
             print(delta)
             last = timestamp
 
     dmin = min(distances)
     dmax = max(distances)
-    avg = sum(distances)//len(distances)
+    avg = sum(distances) // len(distances)
     print(f"Minimum: {dmin}  Maximum: {dmax} Average: {avg} Delta: {dmax-dmin}")
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Extract MIDI clock timings from MIDIOX logs')
+    parser = argparse.ArgumentParser(
+        description="Extract MIDI clock timings from MIDIOX logs"
+    )
     parser.add_argument("filename", type=str, help="The file to be analyzed")
     args = parser.parse_args()
 
     extract(args.filename)
 
+
 if __name__ == "__main__":
     main()
-
