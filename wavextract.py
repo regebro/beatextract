@@ -1,4 +1,6 @@
 import argparse
+import math
+import statistics
 import struct
 import wave
 
@@ -35,7 +37,7 @@ def find_sound(value_gen, threshold):
     return pos
 
 
-def find_silence(value_gen, threshold, silence):
+def find_silence(value_gen, threshold, resolution):
     pos = 0
     while True:
         # Find a section below the threshold
@@ -45,7 +47,7 @@ def find_silence(value_gen, threshold, silence):
         # Check how long that section is
         l = find_sound(value_gen, threshold)
         pos += l
-        if l > silence:
+        if l > resolution:
             # We found silence
             return pos
 
@@ -53,7 +55,28 @@ def find_silence(value_gen, threshold, silence):
         continue
 
 
-def extract(filename, threshold, silence):
+def chunk(values, size):
+    num = math.ceil(len(values)/size)
+    
+    i = 0
+    while i < num:
+        j = i +1
+        yield values[size*i:size*(j)]
+        i = j
+
+def absmax(values):
+    """Returns the maximum value, ignoring signs"""
+    # Not sure if this is faster, or if abs() on each value is faster
+    return max(max(values), -min(values))
+    
+    
+def analyze_levels(values, resolution):
+    # Average out blocks
+    blocks = [absmax(each) for each in chunk(values, resolution)]
+    return math.floor(statistics.median(blocks))*2
+    
+
+def extract(filename, threshold, resolution):
     sound = wave.open(filename, "rb")
 
     if sound.getnchannels() != 1:
@@ -66,6 +89,11 @@ def extract(filename, threshold, silence):
 
     value_gen = iter(values)
     pos = 0
+    
+    if threshold == 0:
+        # Analyze file for threshold
+        threshold = analyze_levels(values, resolution)
+        
     # Skip silence
     print("Looking...")
     pos += find_sound(value_gen, threshold)
@@ -80,7 +108,7 @@ def extract(filename, threshold, silence):
             print(".", end="")
 
             # Now look for silence
-            pos += find_silence(value_gen, threshold, silence)
+            pos += find_silence(value_gen, threshold, resolution)
             # And then for a new sound
             pos += find_sound(value_gen, threshold)
 
@@ -97,7 +125,7 @@ def extract(filename, threshold, silence):
         prev = pos
         
     if not distances:
-        print(f"No sounds found with threshold {threshold} and min {silence} samples of silence.")
+        print(f"No sounds found with threshold {threshold} and min {resolution} samples of silence.")
         return
     
     dmin = min(distances)
@@ -110,14 +138,14 @@ def extract(filename, threshold, silence):
 def main():
     parser = argparse.ArgumentParser(description='Extract timings from soundfiles')
     parser.add_argument("filename", type=str, help="The file to be analyzed")
-    parser.add_argument("-t", "--threshold", type=int, default=300,
+    parser.add_argument("-t", "--threshold", type=int, default=0,
                         help='The value that counts as not silence')
-    parser.add_argument("-s", "--silence", type=int, default=300,
+    parser.add_argument("-r", "--resolution", type=int, default=300,
                         help='The length of silence before the end of the sound (in frames)')
 
     args = parser.parse_args()
 
-    extract(args.filename, args.threshold, args.silence)
+    extract(args.filename, args.threshold, args.resolution)
 
 if __name__ == "__main__":
     main()
