@@ -80,8 +80,14 @@ def extract(filename, threshold, resolution):
     sound = wave.open(filename, "rb")
 
     if sound.getnchannels() != 1:
-        print(f"Sorry, this script only supports mono sounds")
+        print("Sorry, this script only supports mono sounds")
         return
+    
+    if resolution == 0:
+        # Default to using a resolution that is larger than the wavelenghth of 
+        # a 20 Hz wave, so that really low bassnotes doesn't confuse the analysis
+        resolution = math.floor(sound.getframerate()/20)
+        print(f"Using {resolution} samples for silence detection")
 
     print("Loading...")
     values = load(sound)
@@ -93,6 +99,7 @@ def extract(filename, threshold, resolution):
     if threshold == 0:
         # Analyze file for threshold
         threshold = analyze_levels(values, resolution)
+        print(f"Using {threshold} for noise floor threshold")
         
     # Skip silence
     print("Looking...")
@@ -139,9 +146,9 @@ def main():
     parser = argparse.ArgumentParser(description='Extract timings from soundfiles')
     parser.add_argument("filename", type=str, help="The file to be analyzed")
     parser.add_argument("-t", "--threshold", type=int, default=0,
-                        help='The value that counts as not silence')
-    parser.add_argument("-r", "--resolution", type=int, default=300,
-                        help='The length of silence before the end of the sound (in frames)')
+                        help='The noise floor threshold (the value that counts as a sound)')
+    parser.add_argument("-r", "--resolution", type=int, default=0,
+                        help='The length of silence before the end of the sound (in samples)')
 
     args = parser.parse_args()
 
