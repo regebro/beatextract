@@ -139,6 +139,19 @@ def extract(filename, threshold, resolution):
     dmax = max(distances)
     avg = sum(distances)//len(distances)
     print(f"Minimum: {dmin}  Maximum: {dmax} Average: {avg} Delta: {dmax-dmin}")
+    stddev = statistics.pstdev(distances)
+    milliseconds = (stddev*1000)/sound.getframerate()
+    print(f"The standard deviation is {milliseconds} ms")
+    
+    # Split into x groups
+    numgroups = 11
+    gwidth = 2*(max([dmax,dmin])-avg)/numgroups
+    groups = [int((x-dmin)//gwidth) for x in distances]
+    print()
+    print("Distribution:")
+    for i in range(numgroups):
+        print("#"*groups.count(i))    
+    
     return
 
 
