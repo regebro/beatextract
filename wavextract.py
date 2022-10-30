@@ -18,42 +18,63 @@ def load(sound):
         samp_prefix = b"\00"
         samp_divisor = 256
     else:
-        print(f"Sorry, this script does not support a sample width of {width}")
-        return
+        raise RuntimeError(f"Sorry, this script does not support a sample width of {width}")
 
     sample_values = []
     for i in range(sound.getnframes()):
-        frame = sound.readframes(1)
+        frame = sound.readframes(1)[:width]
         sample = struct.unpack(samp_struct, samp_prefix + frame)[0] // samp_divisor
         sample_values.append(sample)
 
     return sample_values
 
 
-def find_sound(value_gen, threshold):
-    pos = 0
-    while abs(value := next(value_gen)) < threshold:
-        pos += 1
-    return pos
-
-
-def find_silence(value_gen, threshold, resolution):
-    pos = 0
+def find_sound(value_gen, threshold, resolution):
     while True:
-        # Find a section below the threshold
-        while abs(value := next(value_gen)) >= threshold:
-            pos += 1
-            continue
-        # Check how long that section is
-        l = find_sound(value_gen, threshold)
-        pos += l
-        if l > resolution:
-            # We found silence
-            return pos
-
-        # That wasn't long enough to be silence, so we continue
-        continue
-
+        try:
+            while True:
+                pos, value = next(value_gen)
+                #print(pos, value)
+                if abs(value) >= threshold:
+                    break
+        except StopIteration:
+            raise StopIteration(pos)
+            
+        while True:
+            # This could be sound, find silence:
+            spos = find_silence(value_gen, threshold, resolution)
+            if spos - pos > 10:
+                # OK, that's a sound
+                return pos
+        
+        
+def find_silence(value_gen, threshold, resolution):
+    while True:
+        try:           
+            while True:
+                # Find a section below the threshold
+                pos, value = next(value_gen)
+                #print(pos, value)
+                if abs(value) < threshold:
+                    break
+        except StopIteration:
+            raise StopIteration(pos)
+        
+        try:
+            # Make sure it's long enough to count as silence:
+            while True:
+                spos, value = next(value_gen)
+                #print(pos, value)
+                if abs(value) >= threshold:
+                    # That wasn't long enough to be silence, so we continue looking
+                    break
+    
+                if spos - pos > resolution:
+                    # Yes, this is silence
+                    return pos
+        except StopIteration:
+            raise StopIteration(spos)
+        
 
 def chunk(values, size):
     num = math.ceil(len(values) / size)
@@ -74,69 +95,61 @@ def absmax(values):
 def analyze_levels(values, resolution):
     # Average out blocks
     blocks = [absmax(each) for each in chunk(values, resolution)]
-    return math.floor(statistics.median(blocks)) * 2
+    return math.floor(statistics.median(blocks) * 2)
 
 
-def extract(filename, threshold, resolution):
-    sound = wave.open(filename, "rb")
-
-    if sound.getnchannels() != 1:
-        print("Sorry, this script only supports mono sounds")
-        return
-
-    if resolution == 0:
-        # Default to using a resolution that is larger than the wavelenghth of
-        # a 20 Hz wave, so that really low bassnotes doesn't confuse the analysis
-        resolution = math.floor(sound.getframerate() / 20)
-        print(f"Using {resolution} samples for silence detection")
-
+def extract(sound, threshold, resolution):
     print("Loading...")
-    values = load(sound)
+    try:
+        values = load(sound)
+    except RuntimeError as e:
+        print(e.args[0])
+        
     print(f"Found {8*sound.getsampwidth()} bit sound file with {len(values)} samples")
-
-    value_gen = iter(values)
-    pos = 0
 
     if threshold == 0:
         # Analyze file for threshold
         threshold = analyze_levels(values, resolution)
         print(f"Using {threshold} for noise floor threshold")
 
+    value_gen = iter(enumerate(values))
+
     # Skip silence
     print("Looking...")
-    pos += find_sound(value_gen, threshold)
-
-    print(f"Skipping {pos} samples of silence.")
-    print("Found sound", end="")
     sound_starts = []
     try:
-
         while True:
+            pos = find_sound(value_gen, threshold, resolution)
             sound_starts.append(pos)
             print(".", end="")
-
+    
             # Now look for silence
-            pos += find_silence(value_gen, threshold, resolution)
+            find_silence(value_gen, threshold, resolution)
             # And then for a new sound
-            pos += find_sound(value_gen, threshold)
-
-    except StopIteration:
-        print()
-
-    print("Done! Found with the following distances")
+            continue
+    except StopIteration as e:
+        # Check that we did iterate to the end
+        assert e.args[0] == sound.getnframes() - 1
+    
     prev = sound_starts[0]
     distances = []
     for pos in sound_starts[1:-1]:
         d = pos - prev
         distances.append(d)
-        print(d)
         prev = pos
+    return distances
 
+
+def print_stats(sound, distances):
     if not distances:
         print(
             f"No sounds found with threshold {threshold} and min {resolution} samples of silence."
         )
         return
+
+    print("Done! Found with the following distances")
+    [print(x) for x in distances]
+
 
     dmin = min(distances)
     dmax = max(distances)
@@ -178,8 +191,47 @@ def main():
 
     args = parser.parse_args()
 
-    extract(args.filename, args.threshold, args.resolution)
+    sound = wave.open(args.filename, "rb")
 
+    if sound.getnchannels() != 1:
+        print("This script only supports mono sounds, in stereofiles on channel 1 is used")
+
+    resolution = args.resolution
+    if resolution == 0:
+        # Default to using a resolution that is larger than the wavelenghth of
+        # a 20 Hz wave, so that really low bassnotes doesn't confuse the analysis
+        resolution = math.floor(sound.getframerate() / 20)
+        print(f"Using {resolution} samples for silence detection")
+
+    distances = extract(sound, args.threshold, resolution)
+    print_stats(sound, distances)
+
+
+def debugproc():
+    import csv
+    parser = argparse.ArgumentParser(description="WTF is going on, really?")
+    parser.add_argument("filename", type=str, help="The file to be analyzed")
+    args = parser.parse_args()
+
+    with open("soundextract.csv", "wt", newline='') as outfile:
+        csvwriter = csv.writer(outfile, delimiter='\t')
+        resolution = math.floor(48000 / 20)
+        
+        thresholds = [350, 400, 424, 450, 500, 1000, 10000, 100000, 1000000]
+        
+        csvwriter.writerow(thresholds)
+        
+        results = []
+        for threshold in thresholds:
+            sound = wave.open(args.filename, "rb")
+            distances = extract(sound, threshold, resolution)
+            results.append(distances)
+        
+        import itertools
+        res = itertools.zip_longest(*results)
+        csvwriter.writerows(res)
+    
 
 if __name__ == "__main__":
     main()
+    #debugproc()
