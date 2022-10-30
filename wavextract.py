@@ -95,7 +95,12 @@ def absmax(values):
 def analyze_levels(values, resolution):
     # Average out blocks
     blocks = [absmax(each) for each in chunk(values, resolution)]
-    return math.floor(statistics.median(blocks) * 2)
+    # This assumes most of the audio is silence. In practice it seems
+    # a good value for noise floor is twice the median.
+    noisefloor = math.floor(statistics.median(blocks) * 2)
+    # Peak level
+    peak = max(blocks)
+    return noisefloor, peak
 
 
 def extract(sound, threshold, resolution):
@@ -108,9 +113,11 @@ def extract(sound, threshold, resolution):
     print(f"Found {8*sound.getsampwidth()} bit sound file with {len(values)} samples")
 
     if threshold == 0:
-        # Analyze file for threshold
-        threshold = analyze_levels(values, resolution)
-        print(f"Using {threshold} for noise floor threshold")
+        # Analyze file for audio levels. Put the threshold somewhere in the
+        # middle, because that's going to be the fastest changing point, and
+        # gives the most accurate results.
+        threshold = sum(analyze_levels(values, resolution))/2
+        print(f"Using {threshold} for trigger threshold")
 
     value_gen = iter(enumerate(values))
 
