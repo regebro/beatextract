@@ -140,7 +140,7 @@ def extract(sound, threshold, resolution):
     
     prev = sound_starts[0]
     distances = []
-    for pos in sound_starts[1:-1]:
+    for pos in sound_starts[1:]:
         d = pos - prev
         distances.append(d)
         prev = pos
