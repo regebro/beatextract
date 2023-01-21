@@ -2,6 +2,7 @@ import argparse
 import math
 import statistics
 import struct
+import sys
 import wave
 
 
@@ -103,7 +104,7 @@ def analyze_levels(values, resolution):
     return noisefloor, peak
 
 
-def extract(sound, threshold, resolution):
+def extract(sound, threshold, resolution, beats):
     print("Loading...")
     try:
         values = load(sound)
@@ -138,22 +139,30 @@ def extract(sound, threshold, resolution):
         # Check that we did iterate to the end
         assert e.args[0] == sound.getnframes() - 1
     
+    if len(sound_starts) < 2:
+        print(
+            f"No sounds found with threshold {threshold} and min {resolution} samples of silence."
+        )
+        sys.exit(1)
+               
     prev = sound_starts[0]
     distances = []
     for pos in sound_starts[1:]:
         d = pos - prev
         distances.append(d)
         prev = pos
+
+    if beats > 1:
+        if len(distances) < 2 * beats:
+            print(
+                f"Did not find enough sounds to group them into groups of {beats}."
+            )
+        distances = [sum(chunk) for chunk in zip(*[iter(distances)]*beats)]
+
     return distances
 
 
 def print_stats(sound, distances):
-    if not distances:
-        print(
-            f"No sounds found with threshold {threshold} and min {resolution} samples of silence."
-        )
-        return
-
     print("Done! Found with the following distances")
     [print(x) for x in distances]
 
@@ -170,10 +179,13 @@ def print_stats(sound, distances):
     numgroups = 11
     gwidth = 2 * (max([dmax, dmin]) - avg) / numgroups
     groups = [int((x - dmin) // gwidth) for x in distances]
+    maxcount = max(groups.count(i) for i in range(numgroups))
+    scale = max(maxcount/80, 1)
+    
     print()
     print("Distribution:")
     for i in range(numgroups):
-        print("#" * groups.count(i))
+        print("#" * int(groups.count(i) / scale))
 
     return
 
@@ -195,6 +207,13 @@ def main():
         default=0,
         help="The length of silence before the end of the sound (in samples)",
     )
+    parser.add_argument(
+        "-b",
+        "--beats",
+        type=int,
+        default=1,
+        help="The amount of ticks that counts as one beat",
+    )
 
     args = parser.parse_args()
 
@@ -210,7 +229,7 @@ def main():
         resolution = math.floor(sound.getframerate() / 20)
         print(f"Using {resolution} samples for silence detection")
 
-    distances = extract(sound, args.threshold, resolution)
+    distances = extract(sound, args.threshold, resolution, args.beats)
     print_stats(sound, distances)
 
 
