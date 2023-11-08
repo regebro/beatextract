@@ -224,9 +224,9 @@ def main():
 
     resolution = args.resolution
     if resolution == 0:
-        # Default to using a resolution that is larger than the wavelenghth of
+        # Default to using a resolution that is larger than the half the wavelenghth of
         # a 20 Hz wave, so that really low bassnotes doesn't confuse the analysis
-        resolution = math.floor(sound.getframerate() / 20)
+        resolution = math.floor(sound.getframerate() / 40)
         print(f"Using {resolution} samples for silence detection")
 
     distances = extract(sound, args.threshold, resolution, args.beats)
