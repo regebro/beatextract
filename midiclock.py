@@ -1,7 +1,7 @@
 import mido
 import time
 
-mido.set_backend("mido.backends.portmidi")
+mido.set_backend("mido.backends.pygame")
 msg = mido.Message("clock")
 out = mido.open_output('MIDIFACE 16x16 MIDI 1', autoreset=True)
 
