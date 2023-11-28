@@ -12,13 +12,15 @@ def print_stats(times):
     dmin = min(deltas)
     dmax = max(deltas)
     avg = sum(deltas) // len(deltas)
-    print(f"Minimum: {dmin}  Maximum: {dmax} Average: {avg} Delta: {dmax-dmin}")
+    print(f"Minimum: {dmin} ns  Maximum: {dmax} ns Average: {avg} ns Delta: {dmax-dmin} ns")
     stddev = statistics.pstdev(deltas)
     print(f"The standard deviation is {stddev} ns")
 
     # Split into x groups
     numgroups = 11
     gwidth = 2 * (max([dmax, dmin]) - avg) / numgroups
+    if gwidth == 0:
+        gwidth = 1
     groups = [int((x - dmin) // gwidth) for x in deltas]
     maxcount = max(groups.count(i) for i in range(numgroups))
     scale = max(maxcount/80, 1)
@@ -33,28 +35,28 @@ def print_stats(times):
 
 def timertest():
 
-    print("Minimal sleep")
-    print("=============")
+    print("Minimal sleep x 100000")
+    print("======================")
     times = []
-    for i in range(10000):
+    for i in range(100000):
         time.sleep(0)  # Sleep as little as possible
         times.append(time.time_ns())
     print_stats(times)
 
-    print("1 microsecond sleep")
-    print("===================")
+    print("1 microsecond sleep x 1000")
+    print("===========================")
     times = []
-    for i in range(10000):
-        time.sleep(0.000001)  # Sleep as little as possible
+    for i in range(1000):
+        time.sleep(0.000001)
         times.append(time.time_ns())
     print_stats(times)
     
 
-    print("1 millisecond sleep")
-    print("===================")
+    print("1 millisecond sleep x 1000")
+    print("==========================")
     times = []
-    for i in range(10000):
-        time.sleep(0.001)  # Sleep as little as possible
+    for i in range(1000):
+        time.sleep(0.001)
         times.append(time.time_ns())
     print_stats(times)
 
