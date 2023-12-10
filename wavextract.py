@@ -163,8 +163,8 @@ def extract(sound, threshold, resolution, beats):
 
 
 def print_stats(sound, distances):
-    print("Done! Found with the following distances")
-    [print(x) for x in distances]
+    print("Done! Found with the following distances (last 20 only)")
+    [print(x) for x in distances[-20:]]
 
 
     dmin = min(distances)
@@ -174,6 +174,15 @@ def print_stats(sound, distances):
     stddev = statistics.pstdev(distances)
     milliseconds = (stddev * 1000) / sound.getframerate()
     print(f"The standard deviation is {milliseconds} ms")
+    cps = sound.getframerate() / avg
+    bpm = cps * 60
+    if bpm > 300:
+       bpma = bpm/24
+    elif bpm < 70:
+       bpma = bpm * 2
+    else:
+       bpma = bpm
+    print(f"There was {cps} clicks per second, likely corresponding to {bpma} bpm.")
 
     # Split into x groups
     numgroups = 11
@@ -204,7 +213,7 @@ def main():
         "-r",
         "--resolution",
         type=int,
-        default=0,
+        default=500,
         help="The length of silence before the end of the sound (in samples)",
     )
     parser.add_argument(
@@ -224,8 +233,6 @@ def main():
 
     resolution = args.resolution
     if resolution == 0:
-        # Default to using a resolution that is larger than the half the wavelenghth of
-        # a 20 Hz wave, so that really low bassnotes doesn't confuse the analysis
         resolution = math.floor(sound.getframerate() / 40)
         print(f"Using {resolution} samples for silence detection")
 
